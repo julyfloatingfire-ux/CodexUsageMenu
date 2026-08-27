@@ -10,6 +10,7 @@ final class PopoverPresentation: ObservableObject {
 struct UsagePopover: View {
     @ObservedObject var store: UsageStore
     @ObservedObject var presentation: PopoverPresentation
+    let refresh: () -> Void
     let quit: () -> Void
 
     var body: some View {
@@ -27,7 +28,7 @@ struct UsagePopover: View {
                 .frame(maxWidth: .infinity, minHeight: 105)
             }
             Divider()
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Text("顶部显示")
                     .font(interfaceFont)
                 Picker("顶部显示", selection: $store.selectedWindow) {
@@ -35,35 +36,38 @@ struct UsagePopover: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
-                .frame(width: 140)
+                .frame(width: 130)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 9)
-            .padding(.top, 7)
+            .padding(.horizontal, 8)
+            .padding(.top, 5)
 
-            HStack(spacing: 12) {
-                Toggle("开机时自动启动", isOn: Binding(
-                    get: { store.launchAtLogin },
-                    set: { store.setLaunchAtLogin($0) }
-                ))
-                Toggle("5小时刷新提醒", isOn: Binding(
-                    get: { store.notifyOnFiveHourReset },
-                    set: { store.setNotificationEnabled($0) }
-                ))
-            }
+            Toggle("开机时自动启动", isOn: Binding(
+                get: { store.launchAtLogin },
+                set: { store.setLaunchAtLogin($0) }
+            ))
             .font(interfaceFont)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 8)
+            .padding(.top, 3)
+
+            Toggle("5小时用量恢复后发送提醒", isOn: Binding(
+                get: { store.notifyOnFiveHourReset },
+                set: { store.setNotificationEnabled($0) }
+            ))
+            .font(interfaceFont)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
 
             HStack {
-                Button("退出") { quit() }
+                Button("手动刷新") { refresh() }
                 Spacer()
+                Button("退出") { quit() }
             }
             .font(interfaceFont)
-            .padding(.horizontal, 9)
-            .padding(.bottom, 7)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 5)
         }
-        .frame(width: 360)
+        .frame(width: 320)
         .fixedSize(horizontal: false, vertical: true)
         .tint(presentation.isInteractive ? .blue : .gray)
         .disabled(!presentation.isInteractive)
@@ -93,10 +97,11 @@ struct UsagePopover: View {
                     progress(cycleTime, "\(Int(cycleTime * 100))%")
                 }
             }
-            .padding(10)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7)
         } else {
             HStack { Text(title).fontWeight(.medium); Spacer(); Text("暂不可用").foregroundStyle(.secondary) }
-                .padding(10)
+                .padding(8)
         }
     }
 

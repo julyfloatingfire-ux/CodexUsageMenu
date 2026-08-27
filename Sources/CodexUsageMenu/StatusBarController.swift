@@ -35,11 +35,12 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
 
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentSize = NSSize(width: 360, height: 290)
+        popover.contentSize = NSSize(width: 320, height: 280)
         popover.contentViewController = NSHostingController(
             rootView: UsagePopover(
                 store: store,
                 presentation: presentation,
+                refresh: { self.store.refresh() },
                 quit: { NSApplication.shared.terminate(nil) }
             )
         )
@@ -71,7 +72,9 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         self.pinned = pinned
         presentation.isInteractive = pinned
         closeJob?.cancel()
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        // 以状态栏按钮的内缘为锚点，减少气泡与菜单栏之间的视觉间距。
+        let anchor = button.bounds.insetBy(dx: 0, dy: 2)
+        popover.show(relativeTo: anchor, of: button, preferredEdge: .minY)
         startMonitor()
     }
     private func close() {
