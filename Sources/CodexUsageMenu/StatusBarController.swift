@@ -26,7 +26,8 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         button.target = self
         button.action = #selector(clicked)
-        button.sendAction(on: [.leftMouseUp])
+        // 在按下状态栏图标时就切换固定状态，避免 transient popover 先于 mouseUp 自动关闭。
+        button.sendAction(on: [.leftMouseDown])
         let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
         button.addTrackingArea(area)
 
@@ -73,12 +74,14 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
     private func setPinned() {
         pinned = true
         presentation.isInteractive = true
+        popover.behavior = .applicationDefined
         closeJob?.cancel()
     }
     private func show(pinned: Bool) {
         guard let button = item.button, pointerOverButton || pinned else { return }
         self.pinned = pinned
         presentation.isInteractive = pinned
+        popover.behavior = pinned ? .applicationDefined : .transient
         closeJob?.cancel()
         // 以状态栏按钮的内缘为锚点，减少气泡与菜单栏之间的视觉间距。
         let anchor = button.bounds.insetBy(dx: 0, dy: 2)
@@ -90,6 +93,7 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         timer?.invalidate()
         pinned = false
         presentation.isInteractive = false
+        popover.behavior = .transient
         popover.performClose(nil)
     }
     private func startMonitor() {
@@ -143,5 +147,6 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         timer?.invalidate()
         pinned = false
         presentation.isInteractive = false
+        popover.behavior = .transient
     }
 }
