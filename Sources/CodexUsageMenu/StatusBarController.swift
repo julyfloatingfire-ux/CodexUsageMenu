@@ -26,8 +26,8 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         button.target = self
         button.action = #selector(clicked)
-        // 在按下状态栏图标时就切换固定状态，避免 transient popover 先于 mouseUp 自动关闭。
-        button.sendAction(on: [.leftMouseDown])
+        // 预览窗口由本控制器的指针状态机管理，因此可在一次正常点击完成后稳定地固定。
+        button.sendAction(on: [.leftMouseUp])
         let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
         button.addTrackingArea(area)
 
@@ -36,7 +36,9 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
             button?.title = " \(choice.shortTitle) \(value)"
         }.store(in: &bag)
 
-        popover.behavior = .transient
+        // 不使用 transient，避免系统在点击状态栏图标时抢先关闭预览窗口。
+        // 所有关闭都由 evaluatePointerLocation() 统一处理。
+        popover.behavior = .applicationDefined
         popover.delegate = self
         popover.contentSize = NSSize(width: 320, height: 280)
         popover.contentViewController = NSHostingController(
@@ -81,7 +83,7 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         guard let button = item.button, pointerOverButton || pinned else { return }
         self.pinned = pinned
         presentation.isInteractive = pinned
-        popover.behavior = pinned ? .applicationDefined : .transient
+        popover.behavior = .applicationDefined
         closeJob?.cancel()
         // 以状态栏按钮的内缘为锚点，减少气泡与菜单栏之间的视觉间距。
         let anchor = button.bounds.insetBy(dx: 0, dy: 2)
@@ -93,7 +95,7 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         timer?.invalidate()
         pinned = false
         presentation.isInteractive = false
-        popover.behavior = .transient
+        popover.behavior = .applicationDefined
         popover.performClose(nil)
     }
     private func startMonitor() {
@@ -147,6 +149,6 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         timer?.invalidate()
         pinned = false
         presentation.isInteractive = false
-        popover.behavior = .transient
+        popover.behavior = .applicationDefined
     }
 }
