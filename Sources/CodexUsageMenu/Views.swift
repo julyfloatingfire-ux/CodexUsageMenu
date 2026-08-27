@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct UsagePopover: View {
@@ -6,9 +7,9 @@ struct UsagePopover: View {
     var body: some View {
         VStack(spacing: 0) {
             if let snapshot = store.snapshot {
-                window("5 小时窗口", snapshot.fiveHour, showsCycleTime: false)
+                window("5小时·剩余用量", snapshot.fiveHour, showsCycleTime: false)
                 Divider().padding(.leading, 14)
-                window("一周窗口", snapshot.weekly, showsCycleTime: true)
+                window("1周·剩余用量", snapshot.weekly, showsCycleTime: true)
             } else {
                 VStack(spacing: 10) {
                     ProgressView()
@@ -20,40 +21,51 @@ struct UsagePopover: View {
             Divider()
             HStack(spacing: 8) {
                 Text("顶部显示")
-                    .font(.footnote)
+                    .font(interfaceFont)
                 Picker("顶部显示", selection: $store.selectedWindow) {
                     ForEach(MenuWindow.allCases) { item in Text(item.title).tag(item) }
                 }
+                .labelsHidden()
                 .pickerStyle(.segmented)
+                .frame(width: 140)
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, 9)
             .padding(.top, 7)
 
-            Toggle("登录时自动启动", isOn: Binding(
+            Toggle("开机时自动启动", isOn: Binding(
                 get: { store.launchAtLogin },
                 set: { store.setLaunchAtLogin($0) }
             ))
-            .font(.footnote)
+            .font(interfaceFont)
             .padding(.horizontal, 9)
             .padding(.bottom, 7)
         }
-        .frame(width: 230)
+        .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
     private func window(_ title: String, _ usage: UsageWindow?, showsCycleTime: Bool) -> some View {
         if let usage {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Text(title).font(.footnote.weight(.medium))
+                    Text(title)
+                        .font(interfaceFont.weight(.medium))
+                        .lineLimit(1)
                     Spacer()
-                    Text(usage.resetText(now: store.now)).font(.caption).foregroundStyle(.secondary)
+                    Text(usage.resetText(now: store.now))
+                        .font(interfaceFont)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                progress("剩余用量", "\(usage.remainingPercent)%", Double(usage.remainingPercent) / 100, .blue)
+                progress(Double(usage.remainingPercent) / 100, "\(usage.remainingPercent)%")
                 if showsCycleTime {
                     let cycleTime = usage.remainingCyclePercent(now: store.now)
-                    progress("本周期剩余时间", "\(Int(cycleTime * 100))% · \(usage.remainingTimeText(now: store.now))", cycleTime, .blue)
+                    Text("1周·周期剩余时间 · \(usage.remainingTimeText(now: store.now))")
+                        .font(interfaceFont)
+                        .lineLimit(1)
+                    progress(cycleTime, "\(Int(cycleTime * 100))%")
                 }
             }
             .padding(10)
@@ -63,13 +75,17 @@ struct UsagePopover: View {
         }
     }
 
-    private func progress(_ name: String, _ value: String, _ fraction: Double, _ tint: Color) -> some View {
-        VStack(spacing: 3) {
-            HStack { Text(name); Spacer(); Text(value).fontWeight(.medium).monospacedDigit() }
-                .font(.system(size: 12.5))
+    private func progress(_ fraction: Double, _ percent: String) -> some View {
+        HStack(spacing: 8) {
             ProgressView(value: fraction)
-                .tint(tint)
-                .scaleEffect(y: 0.72)
+                .tint(.blue)
+                .scaleEffect(y: 0.8)
+            Text(percent)
+                .font(interfaceFont.weight(.medium))
+                .monospacedDigit()
+                .frame(width: 38, alignment: .trailing)
         }
     }
+
+    private var interfaceFont: Font { .system(size: NSFont.systemFontSize) }
 }

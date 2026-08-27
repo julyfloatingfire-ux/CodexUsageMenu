@@ -5,7 +5,7 @@ import ServiceManagement
 enum MenuWindow: String, CaseIterable, Identifiable {
     case fiveHour, weekly
     var id: String { rawValue }
-    var title: String { self == .fiveHour ? "5 小时" : "一周" }
+    var title: String { self == .fiveHour ? "5 小时" : "1 周" }
     var shortTitle: String { self == .fiveHour ? "5h" : "7d" }
 }
 

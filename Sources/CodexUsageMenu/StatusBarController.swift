@@ -34,7 +34,7 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
 
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentSize = NSSize(width: 230, height: 270)
+        popover.contentSize = NSSize(width: 360, height: 255)
         popover.contentViewController = NSHostingController(rootView: UsagePopover(store: store))
     }
 
