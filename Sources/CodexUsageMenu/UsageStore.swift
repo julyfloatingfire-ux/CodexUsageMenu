@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import ServiceManagement
+import UserNotifications
 
 enum MenuWindow: String, CaseIterable, Identifiable {
     case fiveHour, weekly
@@ -54,6 +55,9 @@ final class UsageStore: ObservableObject {
     @Published private(set) var snapshot: UsageSnapshot?
     @Published private(set) var errorText: String?
     @Published private(set) var launchAtLogin: Bool
+    @Published var notifyOnFiveHourReset: Bool {
+        didSet { UserDefaults.standard.set(notifyOnFiveHourReset, forKey: "notifyOnFiveHourReset") }
+    }
     @Published var selectedWindow: MenuWindow {
         didSet { UserDefaults.standard.set(selectedWindow.rawValue, forKey: "menuWindow") }
     }
@@ -66,8 +70,12 @@ final class UsageStore: ObservableObject {
     init() {
         selectedWindow = MenuWindow(rawValue: UserDefaults.standard.string(forKey: "menuWindow") ?? "") ?? .fiveHour
         launchAtLogin = SMAppService.mainApp.status == .enabled
+        notifyOnFiveHourReset = UserDefaults.standard.bool(forKey: "notifyOnFiveHourReset")
         server.onSnapshot = { [weak self] snapshot in
-            Task { @MainActor in self?.snapshot = snapshot; self?.errorText = nil }
+            Task { @MainActor in
+                self?.process(snapshot)
+                self?.errorText = nil
+            }
         }
         server.onError = { [weak self] message in
             Task { @MainActor in self?.errorText = message }
@@ -84,6 +92,21 @@ final class UsageStore: ObservableObject {
 
     var selected: UsageWindow? { snapshot?.window(selectedWindow) }
     func refresh() { server.refresh() }
+    func setNotificationEnabled(_ enabled: Bool) {
+        guard enabled else {
+            notifyOnFiveHourReset = false
+            return
+        }
+        Task {
+            let granted = await NotificationService.requestPermission()
+            if granted {
+                notifyOnFiveHourReset = true
+            } else {
+                notifyOnFiveHourReset = false
+                errorText = "请在系统设置中允许 Codex Usage 的通知"
+            }
+        }
+    }
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
             if enabled {
@@ -98,6 +121,37 @@ final class UsageStore: ObservableObject {
         }
     }
     func shutdown() { clockTimer?.invalidate(); refreshTimer?.invalidate(); server.stop() }
+
+    private func process(_ newSnapshot: UsageSnapshot) {
+        snapshot = newSnapshot
+        guard let reset = newSnapshot.fiveHour?.resetsAt else { return }
+        let key = "lastFiveHourReset"
+        let previous = UserDefaults.standard.double(forKey: key)
+        let current = reset.timeIntervalSince1970
+        if previous > 0, current > previous, notifyOnFiveHourReset {
+            NotificationService.sendFiveHourResetNotification()
+        }
+        if current > previous { UserDefaults.standard.set(current, forKey: key) }
+    }
+}
+
+enum NotificationService {
+    static func requestPermission() async -> Bool {
+        (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false
+    }
+
+    static func sendFiveHourResetNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Codex 5小时限额已刷新"
+        content.body = "现在可以继续使用 Codex。"
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "codex-five-hour-reset-\(Date.now.timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
 }
 
 final class CodexServer: @unchecked Sendable {

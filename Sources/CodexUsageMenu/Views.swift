@@ -39,6 +39,13 @@ struct UsagePopover: View {
             ))
             .font(interfaceFont)
             .padding(.horizontal, 9)
+
+            Toggle("5小时刷新后提醒", isOn: Binding(
+                get: { store.notifyOnFiveHourReset },
+                set: { store.setNotificationEnabled($0) }
+            ))
+            .font(interfaceFont)
+            .padding(.horizontal, 9)
             .padding(.bottom, 7)
         }
         .frame(width: 360)
