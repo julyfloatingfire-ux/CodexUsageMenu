@@ -27,8 +27,8 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         button.target = self
         button.action = #selector(clicked)
-        // 预览窗口由本控制器的指针状态机管理，因此可在一次正常点击完成后稳定地固定。
-        button.sendAction(on: [.leftMouseUp])
+        // 左键仅用于正常的状态栏交互；只有右键释放才会把预览固定为可操作窗口。
+        button.sendAction(on: [.rightMouseUp])
         let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
         button.addTrackingArea(area)
 
@@ -78,7 +78,12 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
     override func mouseExited(with event: NSEvent) { scheduleClose() }
 
     @objc private func clicked() {
-        if popover.isShown { pinned ? close() : setPinned() } else { show(pinned: true) }
+        // 右键只负责进入固定态；固定后不因再次右键关闭。
+        if popover.isShown {
+            if !pinned { setPinned() }
+        } else {
+            show(pinned: true)
+        }
     }
 
     private func setPinned() {
@@ -117,7 +122,7 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
     /// transient popover 对菜单栏状态项的 hover/click 组合并不总能可靠地发出关闭事件，
     /// 因此同时监听本应用和其他应用中的指针事件，统一判断是否已离开图标和面板。
     private func startPointerMonitoring() {
-        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDown]
+        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDown, .rightMouseDown]
         globalPointerMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] event in
             DispatchQueue.main.async { self?.evaluatePointerLocation(for: event) }
         }
@@ -140,8 +145,15 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
             closeJob = nil
             return
         }
-        // 预览态离开即收起；可操作态点击面板外也由此收起。
-        close()
+        if pinned {
+            // 固定态忽略鼠标移动；仅在窗口外实际点击时关闭。
+            if let event, event.type == .leftMouseDown || event.type == .rightMouseDown {
+                close()
+            }
+        } else {
+            // 预览态离开图标和面板即收起。
+            close()
+        }
     }
 
     private func checkHover() {
