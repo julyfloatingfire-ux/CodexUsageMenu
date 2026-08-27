@@ -10,6 +10,8 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
     private let popover = NSPopover()
     private var closeJob: DispatchWorkItem?
     private var timer: Timer?
+    private var globalPointerMonitor: Any?
+    private var localPointerMonitor: Any?
     private var pinned = false
     private var bag = Set<AnyCancellable>()
 
@@ -44,10 +46,16 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
                 quit: { NSApplication.shared.terminate(nil) }
             )
         )
+        startPointerMonitoring()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
-    func shutdown() { timer?.invalidate(); store.shutdown() }
+    func shutdown() {
+        timer?.invalidate()
+        if let globalPointerMonitor { NSEvent.removeMonitor(globalPointerMonitor) }
+        if let localPointerMonitor { NSEvent.removeMonitor(localPointerMonitor) }
+        store.shutdown()
+    }
 
     override func mouseEntered(with event: NSEvent) {
         closeJob?.cancel()
@@ -90,6 +98,31 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
             Task { @MainActor in self?.checkHover() }
         }
     }
+
+    /// transient popover 对菜单栏状态项的 hover/click 组合并不总能可靠地发出关闭事件，
+    /// 因此同时监听本应用和其他应用中的指针事件，统一判断是否已离开图标和面板。
+    private func startPointerMonitoring() {
+        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDown]
+        globalPointerMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] _ in
+            DispatchQueue.main.async { self?.evaluatePointerLocation() }
+        }
+        localPointerMonitor = NSEvent.addLocalMonitorForEvents(matching: events) { [weak self] event in
+            self?.evaluatePointerLocation()
+            return event
+        }
+    }
+
+    private func evaluatePointerLocation() {
+        guard popover.isShown else { return }
+        guard !pointerOverButton && !pointerOverPopover else {
+            closeJob?.cancel()
+            closeJob = nil
+            return
+        }
+        // 预览态离开即收起；可操作态点击面板外也由此收起。
+        close()
+    }
+
     private func checkHover() {
         guard popover.isShown, !pinned else { return }
         if pointerOverButton || pointerOverPopover { closeJob?.cancel() } else { scheduleClose() }

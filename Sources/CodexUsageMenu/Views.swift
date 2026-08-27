@@ -47,6 +47,7 @@ struct UsagePopover: View {
                 set: { store.setLaunchAtLogin($0) }
             ))
             .font(interfaceFont)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 8)
             .padding(.top, 3)
 
@@ -55,6 +56,7 @@ struct UsagePopover: View {
                 set: { store.setNotificationEnabled($0) }
             ))
             .font(interfaceFont)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
 
