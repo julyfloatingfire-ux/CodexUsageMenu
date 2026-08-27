@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import ServiceManagement
 
 enum MenuWindow: String, CaseIterable, Identifiable {
     case fiveHour, weekly
@@ -52,6 +53,7 @@ struct UsageSnapshot: Equatable {
 final class UsageStore: ObservableObject {
     @Published private(set) var snapshot: UsageSnapshot?
     @Published private(set) var errorText: String?
+    @Published private(set) var launchAtLogin: Bool
     @Published var selectedWindow: MenuWindow {
         didSet { UserDefaults.standard.set(selectedWindow.rawValue, forKey: "menuWindow") }
     }
@@ -63,6 +65,7 @@ final class UsageStore: ObservableObject {
 
     init() {
         selectedWindow = MenuWindow(rawValue: UserDefaults.standard.string(forKey: "menuWindow") ?? "") ?? .fiveHour
+        launchAtLogin = SMAppService.mainApp.status == .enabled
         server.onSnapshot = { [weak self] snapshot in
             Task { @MainActor in self?.snapshot = snapshot; self?.errorText = nil }
         }
@@ -81,6 +84,19 @@ final class UsageStore: ObservableObject {
 
     var selected: UsageWindow? { snapshot?.window(selectedWindow) }
     func refresh() { server.refresh() }
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        } catch {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+            errorText = "无法更新登录启动：\(error.localizedDescription)"
+        }
+    }
     func shutdown() { clockTimer?.invalidate(); refreshTimer?.invalidate(); server.stop() }
 }
 

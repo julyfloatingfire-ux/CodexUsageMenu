@@ -14,6 +14,8 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
 
     override init() {
         super.init()
+        item.autosaveName = "com.floatingfire.CodexUsageMenu.statusItem"
+        item.isVisible = true
         guard let button = item.button else { return }
         button.image = NSImage(systemSymbolName: "hourglass", accessibilityDescription: "Codex Usage")
         button.image?.isTemplate = true
@@ -32,7 +34,7 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
 
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentSize = NSSize(width: 230, height: 245)
+        popover.contentSize = NSSize(width: 230, height: 270)
         popover.contentViewController = NSHostingController(rootView: UsagePopover(store: store))
     }
 

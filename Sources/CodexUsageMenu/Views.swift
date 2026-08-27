@@ -26,7 +26,16 @@ struct UsagePopover: View {
                 }
                 .pickerStyle(.segmented)
             }
-            .padding(9)
+            .padding(.horizontal, 9)
+            .padding(.top, 7)
+
+            Toggle("登录时自动启动", isOn: Binding(
+                get: { store.launchAtLogin },
+                set: { store.setLaunchAtLogin($0) }
+            ))
+            .font(.footnote)
+            .padding(.horizontal, 9)
+            .padding(.bottom, 7)
         }
         .frame(width: 230)
         .fixedSize(horizontal: false, vertical: true)
