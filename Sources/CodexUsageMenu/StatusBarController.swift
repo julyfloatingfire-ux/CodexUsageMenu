@@ -32,8 +32,8 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
 
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentSize = NSSize(width: 220, height: 210)
-        popover.contentViewController = NSHostingController(rootView: UsagePopover(store: store, close: { [weak self] in self?.close() }))
+        popover.contentSize = NSSize(width: 230, height: 245)
+        popover.contentViewController = NSHostingController(rootView: UsagePopover(store: store))
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }

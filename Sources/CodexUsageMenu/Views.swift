@@ -2,21 +2,9 @@ import SwiftUI
 
 struct UsagePopover: View {
     @ObservedObject var store: UsageStore
-    let close: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Label("Codex Usage", systemImage: "hourglass")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text("自动更新")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            Divider()
             if let snapshot = store.snapshot {
                 window("5 小时窗口", snapshot.fiveHour, showsCycleTime: false)
                 Divider().padding(.leading, 14)
@@ -30,30 +18,28 @@ struct UsagePopover: View {
                 .frame(maxWidth: .infinity, minHeight: 105)
             }
             Divider()
-            VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Text("顶部显示")
+                    .font(.footnote)
                 Picker("顶部显示", selection: $store.selectedWindow) {
                     ForEach(MenuWindow.allCases) { item in Text(item.title).tag(item) }
                 }
                 .pickerStyle(.segmented)
-                HStack {
-                    Button("退出") { NSApplication.shared.terminate(nil) }
-                    Spacer()
-                    Button("关闭") { close() }.keyboardShortcut(.cancelAction)
-                }
             }
             .padding(9)
         }
-        .frame(width: 220)
+        .frame(width: 230)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
     private func window(_ title: String, _ usage: UsageWindow?, showsCycleTime: Bool) -> some View {
         if let usage {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(title).font(.caption.weight(.medium))
+                    Text(title).font(.footnote.weight(.medium))
                     Spacer()
-                    Text(usage.resetText(now: store.now)).font(.caption2).foregroundStyle(.secondary)
+                    Text(usage.resetText(now: store.now)).font(.caption).foregroundStyle(.secondary)
                 }
                 progress("剩余用量", "\(usage.remainingPercent)%", Double(usage.remainingPercent) / 100, .blue)
                 if showsCycleTime {
@@ -71,7 +57,7 @@ struct UsagePopover: View {
     private func progress(_ name: String, _ value: String, _ fraction: Double, _ tint: Color) -> some View {
         VStack(spacing: 3) {
             HStack { Text(name); Spacer(); Text(value).fontWeight(.medium).monospacedDigit() }
-                .font(.system(size: 11))
+                .font(.system(size: 12.5))
             ProgressView(value: fraction)
                 .tint(tint)
                 .scaleEffect(y: 0.72)
