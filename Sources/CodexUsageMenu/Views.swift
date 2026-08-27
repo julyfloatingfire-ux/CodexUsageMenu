@@ -93,9 +93,16 @@ struct UsagePopover: View {
                 progress(Double(usage.remainingPercent) / 100, "\(usage.remainingPercent)%")
                 if showsCycleTime {
                     let cycleTime = usage.remainingCyclePercent(now: store.now)
-                    Text("1周·周期剩余时间 · \(usage.remainingTimeText(now: store.now))")
-                        .font(interfaceFont)
-                        .lineLimit(1)
+                    HStack {
+                        Text("1周·周期剩余时间")
+                            .font(interfaceFont)
+                            .lineLimit(1)
+                        Spacer()
+                        Text(usage.remainingTimeText(now: store.now))
+                            .font(interfaceFont)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                     progress(cycleTime, "\(Int(cycleTime * 100))%")
                 }
             }
