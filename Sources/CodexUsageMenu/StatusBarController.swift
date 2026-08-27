@@ -12,6 +12,7 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
     private var timer: Timer?
     private var globalPointerMonitor: Any?
     private var localPointerMonitor: Any?
+    private var deferredStatusTitle: String?
     private var pinned = false
     private var bag = Set<AnyCancellable>()
 
@@ -31,9 +32,16 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
         button.addTrackingArea(area)
 
-        store.$snapshot.combineLatest(store.$selectedWindow).sink { [weak button] snapshot, choice in
+        store.$snapshot.combineLatest(store.$selectedWindow).sink { [weak self, weak button] snapshot, choice in
             let value = snapshot?.window(choice).map { "\($0.remainingPercent)%" } ?? "--"
-            button?.title = " \(choice.shortTitle) \(value)"
+            let title = " \(choice.shortTitle) \(value)"
+            guard let self else { return }
+            // 弹窗显示期间不改变状态栏项宽度，以免 Picker 切换时重算锚点位置。
+            if self.popover.isShown {
+                self.deferredStatusTitle = title
+            } else {
+                button?.title = title
+            }
         }.store(in: &bag)
 
         // 不使用 transient，避免系统在点击状态栏图标时抢先关闭预览窗口。
@@ -97,6 +105,7 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         presentation.isInteractive = false
         popover.behavior = .applicationDefined
         popover.performClose(nil)
+        applyDeferredStatusTitle()
     }
     private func startMonitor() {
         timer?.invalidate()
@@ -109,17 +118,23 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
     /// 因此同时监听本应用和其他应用中的指针事件，统一判断是否已离开图标和面板。
     private func startPointerMonitoring() {
         let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDown]
-        globalPointerMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] _ in
-            DispatchQueue.main.async { self?.evaluatePointerLocation() }
+        globalPointerMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] event in
+            DispatchQueue.main.async { self?.evaluatePointerLocation(for: event) }
         }
         localPointerMonitor = NSEvent.addLocalMonitorForEvents(matching: events) { [weak self] event in
-            self?.evaluatePointerLocation()
+            self?.evaluatePointerLocation(for: event)
             return event
         }
     }
 
-    private func evaluatePointerLocation() {
+    private func evaluatePointerLocation(for event: NSEvent? = nil) {
         guard popover.isShown else { return }
+        // 分段选择器等控件的事件属于 popover window；即使坐标更新尚未完成，也不能误判为外部点击。
+        if let event, event.window === popover.contentViewController?.view.window {
+            closeJob?.cancel()
+            closeJob = nil
+            return
+        }
         guard !pointerOverButton && !pointerOverPopover else {
             closeJob?.cancel()
             closeJob = nil
@@ -145,10 +160,16 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
     }
     private var pointerOverButton: Bool { item.button?.window?.frame.contains(NSEvent.mouseLocation) ?? false }
     private var pointerOverPopover: Bool { popover.contentViewController?.view.window?.frame.contains(NSEvent.mouseLocation) ?? false }
+    private func applyDeferredStatusTitle() {
+        guard let title = deferredStatusTitle else { return }
+        item.button?.title = title
+        deferredStatusTitle = nil
+    }
     func popoverDidClose(_ notification: Notification) {
         timer?.invalidate()
         pinned = false
         presentation.isInteractive = false
         popover.behavior = .applicationDefined
+        applyDeferredStatusTitle()
     }
 }
