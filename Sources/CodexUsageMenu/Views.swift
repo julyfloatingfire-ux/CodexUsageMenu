@@ -1,8 +1,16 @@
 import AppKit
+import Combine
 import SwiftUI
+
+@MainActor
+final class PopoverPresentation: ObservableObject {
+    @Published var isInteractive = false
+}
 
 struct UsagePopover: View {
     @ObservedObject var store: UsageStore
+    @ObservedObject var presentation: PopoverPresentation
+    let quit: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,23 +41,33 @@ struct UsagePopover: View {
             .padding(.horizontal, 9)
             .padding(.top, 7)
 
-            Toggle("开机时自动启动", isOn: Binding(
-                get: { store.launchAtLogin },
-                set: { store.setLaunchAtLogin($0) }
-            ))
+            HStack(spacing: 12) {
+                Toggle("开机时自动启动", isOn: Binding(
+                    get: { store.launchAtLogin },
+                    set: { store.setLaunchAtLogin($0) }
+                ))
+                Toggle("5小时刷新提醒", isOn: Binding(
+                    get: { store.notifyOnFiveHourReset },
+                    set: { store.setNotificationEnabled($0) }
+                ))
+            }
             .font(interfaceFont)
             .padding(.horizontal, 9)
+            .padding(.vertical, 5)
 
-            Toggle("5小时刷新后提醒", isOn: Binding(
-                get: { store.notifyOnFiveHourReset },
-                set: { store.setNotificationEnabled($0) }
-            ))
+            HStack {
+                Button("退出") { quit() }
+                Spacer()
+            }
             .font(interfaceFont)
             .padding(.horizontal, 9)
             .padding(.bottom, 7)
         }
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
+        .tint(presentation.isInteractive ? .blue : .gray)
+        .disabled(!presentation.isInteractive)
+        .background(presentation.isInteractive ? Color.blue.opacity(0.12) : Color.gray.opacity(0.14))
     }
 
     @ViewBuilder
@@ -85,7 +103,7 @@ struct UsagePopover: View {
     private func progress(_ fraction: Double, _ percent: String) -> some View {
         HStack(spacing: 8) {
             ProgressView(value: fraction)
-                .tint(.blue)
+                .tint(presentation.isInteractive ? .blue : .gray)
                 .scaleEffect(y: 0.8)
             Text(percent)
                 .font(interfaceFont.weight(.medium))

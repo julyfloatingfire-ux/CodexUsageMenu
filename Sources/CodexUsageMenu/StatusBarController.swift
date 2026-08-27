@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class StatusBarController: NSResponder, NSPopoverDelegate {
     private let store = UsageStore()
+    private let presentation = PopoverPresentation()
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover = NSPopover()
     private var closeJob: DispatchWorkItem?
@@ -34,8 +35,14 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
 
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentSize = NSSize(width: 360, height: 280)
-        popover.contentViewController = NSHostingController(rootView: UsagePopover(store: store))
+        popover.contentSize = NSSize(width: 360, height: 290)
+        popover.contentViewController = NSHostingController(
+            rootView: UsagePopover(
+                store: store,
+                presentation: presentation,
+                quit: { NSApplication.shared.terminate(nil) }
+            )
+        )
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
@@ -54,15 +61,26 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
         if popover.isShown { pinned ? close() : setPinned() } else { show(pinned: true) }
     }
 
-    private func setPinned() { pinned = true; closeJob?.cancel() }
+    private func setPinned() {
+        pinned = true
+        presentation.isInteractive = true
+        closeJob?.cancel()
+    }
     private func show(pinned: Bool) {
         guard let button = item.button, pointerOverButton || pinned else { return }
         self.pinned = pinned
+        presentation.isInteractive = pinned
         closeJob?.cancel()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         startMonitor()
     }
-    private func close() { closeJob?.cancel(); timer?.invalidate(); pinned = false; popover.performClose(nil) }
+    private func close() {
+        closeJob?.cancel()
+        timer?.invalidate()
+        pinned = false
+        presentation.isInteractive = false
+        popover.performClose(nil)
+    }
     private func startMonitor() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
@@ -85,5 +103,9 @@ final class StatusBarController: NSResponder, NSPopoverDelegate {
     }
     private var pointerOverButton: Bool { item.button?.window?.frame.contains(NSEvent.mouseLocation) ?? false }
     private var pointerOverPopover: Bool { popover.contentViewController?.view.window?.frame.contains(NSEvent.mouseLocation) ?? false }
-    func popoverDidClose(_ notification: Notification) { timer?.invalidate(); pinned = false }
+    func popoverDidClose(_ notification: Notification) {
+        timer?.invalidate()
+        pinned = false
+        presentation.isInteractive = false
+    }
 }
