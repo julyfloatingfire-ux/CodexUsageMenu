@@ -35,7 +35,7 @@ struct UsageSquareView: View {
                     .tint(.red)
             }
         }
-        .frame(width: 112, height: 112)
+        .frame(width: 128, height: 128)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
@@ -68,13 +68,13 @@ struct UsageSquareView: View {
                     Text("剩余 \(usage.remainingPercent)%").fontWeight(.semibold).monospacedDigit()
                 }
                 bar(Double(usage.remainingPercent) / 100)
-                HStack(spacing: 3) {
-                    Text("周期 \(Int(cycle * 100))%").monospacedDigit()
+                HStack {
                     Spacer(minLength: 0)
                     Text(usage.remainingTimeText(now: store.now))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.65)
+                        .minimumScaleFactor(0.75)
+                    Spacer(minLength: 0)
                 }
                 bar(cycle)
             }

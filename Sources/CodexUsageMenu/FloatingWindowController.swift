@@ -30,7 +30,7 @@ private final class FloatingPanel: NSPanel {
 
 @MainActor
 final class FloatingWindowController: NSObject, NSWindowDelegate {
-    private enum Layout { static let square = NSSize(width: 112, height: 112) }
+    private enum Layout { static let square = NSSize(width: 128, height: 128) }
 
     private let store = UsageStore()
     private let presentation = FloatingPresentation()
