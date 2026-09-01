@@ -2,10 +2,10 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var controller: StatusBarController?
+    private var controller: FloatingWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        controller = StatusBarController()
+        controller = FloatingWindowController()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
