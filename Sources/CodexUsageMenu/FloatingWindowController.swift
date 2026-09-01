@@ -20,6 +20,7 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
     private var activityTimer: Timer?
     private var bag = Set<AnyCancellable>()
     private var missingCodexChecks = 0
+    private var compactOrigin = NSPoint.zero
     private let positionKey = "floatingWindowOrigin"
 
     override init() {
@@ -40,6 +41,7 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.delegate = self
+        compactOrigin = panel.frame.origin
         panel.contentViewController = NSHostingController(
             rootView: FloatingUsageView(
                 store: store,
@@ -67,8 +69,10 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowDidMove(_ notification: Notification) {
-        constrainPanelToCurrentScreen()
-        UserDefaults.standard.set([panel.frame.origin.x, panel.frame.origin.y], forKey: positionKey)
+        constrainPanelToPanelScreen()
+        guard !presentation.isExpanded else { return }
+        compactOrigin = panel.frame.origin
+        UserDefaults.standard.set([compactOrigin.x, compactOrigin.y], forKey: positionKey)
     }
 
     private func syncCodexVisibility() {
@@ -97,33 +101,42 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
     }
 
     private func resizePanel(expanded: Bool) {
-        let target = expanded ? Layout.expanded : Layout.compact
-        let visibleFrame = screenForPointer.visibleFrame
-        // 以鼠标所在位置作为展开锚点。即使圆球拖在边缘，鼠标也会留在展开后的面板内。
-        let anchor = NSEvent.mouseLocation
-        var frame = NSRect(
-            x: anchor.x - target.width / 2,
-            y: anchor.y - target.height / 2,
-            width: target.width,
-            height: target.height
-        )
-        frame = constrained(frame, to: visibleFrame)
+        let frame: NSRect
+        if expanded {
+            // 以圆球自身的位置展开，而不是跟随鼠标位置。
+            let compactFrame = NSRect(origin: compactOrigin, size: Layout.compact)
+            let center = NSPoint(x: compactFrame.midX, y: compactFrame.midY)
+            frame = constrained(
+                NSRect(
+                    x: center.x - Layout.expanded.width / 2,
+                    y: center.y - Layout.expanded.height / 2,
+                    width: Layout.expanded.width,
+                    height: Layout.expanded.height
+                ),
+                to: screen(for: compactFrame).visibleFrame
+            )
+        } else {
+            frame = constrained(
+                NSRect(origin: compactOrigin, size: Layout.compact),
+                to: screen(for: panel.frame).visibleFrame
+            )
+        }
         panel.setFrame(frame, display: true, animate: true)
     }
 
-    private var screenForPointer: NSScreen {
-        let pointer = NSEvent.mouseLocation
-        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.contains(pointer) }) {
+    private func screen(for frame: NSRect) -> NSScreen {
+        let center = NSPoint(x: frame.midX, y: frame.midY)
+        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.contains(center) }) {
             return screen
         }
-        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(panel.frame) }) {
+        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(frame) }) {
             return screen
         }
         return NSScreen.main ?? NSScreen.screens[0]
     }
 
-    private func constrainPanelToCurrentScreen() {
-        let screen = screenForPointer
+    private func constrainPanelToPanelScreen() {
+        let screen = screen(for: panel.frame)
         let constrainedFrame = constrained(panel.frame, to: screen.visibleFrame)
         if constrainedFrame != panel.frame { panel.setFrame(constrainedFrame, display: true) }
     }
