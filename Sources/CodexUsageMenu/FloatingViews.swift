@@ -10,9 +10,9 @@ final class FloatingPresentation: ObservableObject {
 struct FloatingUsageView: View {
     @ObservedObject var store: UsageStore
     @ObservedObject var presentation: FloatingPresentation
+    let hoverChanged: (Bool) -> Void
     let refresh: () -> Void
     let quit: () -> Void
-    @State private var isPointerInside = false
 
     var body: some View {
         // 外层始终存在，不能随圆球/面板切换而替换，否则 onHover 会被误触发为移出。
@@ -30,17 +30,7 @@ struct FloatingUsageView: View {
         )
         .clipped()
         .contentShape(Rectangle())
-        .onHover { inside in
-            isPointerInside = inside
-            if inside {
-                presentation.isExpanded = true
-            } else {
-                // 给鼠标从圆球移动到刚展开的面板预留一个极短的过渡时间。
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    if !isPointerInside { presentation.isExpanded = false }
-                }
-            }
-        }
+        .onHover(perform: hoverChanged)
         .animation(.easeInOut(duration: 0.16), value: presentation.isExpanded)
     }
 
