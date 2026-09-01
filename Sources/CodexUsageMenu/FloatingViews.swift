@@ -37,6 +37,9 @@ struct UsageSquareView: View {
         }
         .frame(width: 128, height: 128)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .onHover { inside in
+            if !inside { presentation.showsExit = false }
+        }
     }
 
     private func fiveHourMetric(_ usage: UsageWindow?) -> some View {

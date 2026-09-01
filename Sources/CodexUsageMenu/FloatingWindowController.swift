@@ -4,7 +4,7 @@ import SwiftUI
 private final class FloatingPanel: NSPanel {
     var canRevealExit: (() -> Bool)?
     var onShortClick: (() -> Void)?
-    private var pressLocation: NSPoint?
+    private var pressScreenLocation: NSPoint?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -12,12 +12,13 @@ private final class FloatingPanel: NSPanel {
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown where canRevealExit?() == true:
-            pressLocation = event.locationInWindow
+            // 拖动窗口后 locationInWindow 会随窗口坐标一起变化，必须记录全局屏幕坐标。
+            pressScreenLocation = NSEvent.mouseLocation
         case .leftMouseUp:
-            let shouldReveal = canRevealExit?() == true && pressLocation.map {
-                hypot(event.locationInWindow.x - $0.x, event.locationInWindow.y - $0.y) < 4
+            let shouldReveal = canRevealExit?() == true && pressScreenLocation.map {
+                hypot(NSEvent.mouseLocation.x - $0.x, NSEvent.mouseLocation.y - $0.y) < 4
             } == true
-            pressLocation = nil
+            pressScreenLocation = nil
             super.sendEvent(event)
             if shouldReveal { onShortClick?() }
             return
