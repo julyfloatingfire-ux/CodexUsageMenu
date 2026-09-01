@@ -19,6 +19,7 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
     private let panel: FloatingPanel
     private var activityTimer: Timer?
     private var bag = Set<AnyCancellable>()
+    private var missingCodexChecks = 0
     private let positionKey = "floatingWindowOrigin"
 
     override init() {
@@ -71,15 +72,23 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
 
     private func syncCodexVisibility() {
         if isCodexDesktopRunning {
+            missingCodexChecks = 0
             if !panel.isVisible { panel.orderFrontRegardless() }
-        } else if panel.isVisible {
+        } else {
+            // NSWorkspace 偶尔会在应用切换时漏掉一次快照；连续三次未命中才隐藏。
+            missingCodexChecks += 1
+            guard missingCodexChecks >= 3, panel.isVisible else { return }
             presentation.isExpanded = false
             panel.orderOut(nil)
         }
     }
 
     private var isCodexDesktopRunning: Bool {
-        NSWorkspace.shared.runningApplications.contains { app in
+        // 当前桌面版 Codex 的宿主显示名是 ChatGPT，但 bundle identifier 为 com.openai.codex。
+        if !NSRunningApplication.runningApplications(withBundleIdentifier: "com.openai.codex").isEmpty {
+            return true
+        }
+        return NSWorkspace.shared.runningApplications.contains { app in
             let name = app.localizedName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let identifier = app.bundleIdentifier?.lowercased() ?? ""
             return name == "codex" || identifier.contains(".codex")
@@ -90,13 +99,27 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
         let target = expanded ? Layout.expanded : Layout.compact
         let current = panel.frame
         let center = NSPoint(x: current.midX, y: current.midY)
-        let frame = NSRect(
+        var frame = NSRect(
             x: center.x - target.width / 2,
             y: center.y - target.height / 2,
             width: target.width,
             height: target.height
         )
+        let visibleFrame = screenForCurrentPanel.visibleFrame
+        frame.origin.x = min(max(frame.origin.x, visibleFrame.minX), visibleFrame.maxX - frame.width)
+        frame.origin.y = min(max(frame.origin.y, visibleFrame.minY), visibleFrame.maxY - frame.height)
         panel.setFrame(frame, display: true, animate: true)
+    }
+
+    private var screenForCurrentPanel: NSScreen {
+        let center = NSPoint(x: panel.frame.midX, y: panel.frame.midY)
+        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.contains(center) }) {
+            return screen
+        }
+        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(panel.frame) }) {
+            return screen
+        }
+        return NSScreen.main ?? NSScreen.screens[0]
     }
 
     private static func initialFrame(size: NSSize) -> NSRect {
