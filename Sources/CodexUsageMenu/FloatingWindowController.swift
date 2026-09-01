@@ -67,6 +67,7 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowDidMove(_ notification: Notification) {
+        constrainPanelToCurrentScreen()
         UserDefaults.standard.set([panel.frame.origin.x, panel.frame.origin.y], forKey: positionKey)
     }
 
@@ -97,29 +98,41 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
 
     private func resizePanel(expanded: Bool) {
         let target = expanded ? Layout.expanded : Layout.compact
-        let current = panel.frame
-        let center = NSPoint(x: current.midX, y: current.midY)
+        let visibleFrame = screenForPointer.visibleFrame
+        // 以鼠标所在位置作为展开锚点。即使圆球拖在边缘，鼠标也会留在展开后的面板内。
+        let anchor = NSEvent.mouseLocation
         var frame = NSRect(
-            x: center.x - target.width / 2,
-            y: center.y - target.height / 2,
+            x: anchor.x - target.width / 2,
+            y: anchor.y - target.height / 2,
             width: target.width,
             height: target.height
         )
-        let visibleFrame = screenForCurrentPanel.visibleFrame
-        frame.origin.x = min(max(frame.origin.x, visibleFrame.minX), visibleFrame.maxX - frame.width)
-        frame.origin.y = min(max(frame.origin.y, visibleFrame.minY), visibleFrame.maxY - frame.height)
+        frame = constrained(frame, to: visibleFrame)
         panel.setFrame(frame, display: true, animate: true)
     }
 
-    private var screenForCurrentPanel: NSScreen {
-        let center = NSPoint(x: panel.frame.midX, y: panel.frame.midY)
-        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.contains(center) }) {
+    private var screenForPointer: NSScreen {
+        let pointer = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.contains(pointer) }) {
             return screen
         }
         if let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(panel.frame) }) {
             return screen
         }
         return NSScreen.main ?? NSScreen.screens[0]
+    }
+
+    private func constrainPanelToCurrentScreen() {
+        let screen = screenForPointer
+        let constrainedFrame = constrained(panel.frame, to: screen.visibleFrame)
+        if constrainedFrame != panel.frame { panel.setFrame(constrainedFrame, display: true) }
+    }
+
+    private func constrained(_ frame: NSRect, to visibleFrame: NSRect) -> NSRect {
+        var result = frame
+        result.origin.x = min(max(result.origin.x, visibleFrame.minX), visibleFrame.maxX - result.width)
+        result.origin.y = min(max(result.origin.y, visibleFrame.minY), visibleFrame.maxY - result.height)
+        return result
     }
 
     private static func initialFrame(size: NSSize) -> NSRect {

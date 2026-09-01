@@ -12,6 +12,7 @@ struct FloatingUsageView: View {
     @ObservedObject var presentation: FloatingPresentation
     let refresh: () -> Void
     let quit: () -> Void
+    @State private var isPointerInside = false
 
     var body: some View {
         // 外层始终存在，不能随圆球/面板切换而替换，否则 onHover 会被误触发为移出。
@@ -29,7 +30,17 @@ struct FloatingUsageView: View {
         )
         .clipped()
         .contentShape(Rectangle())
-        .onHover { presentation.isExpanded = $0 }
+        .onHover { inside in
+            isPointerInside = inside
+            if inside {
+                presentation.isExpanded = true
+            } else {
+                // 给鼠标从圆球移动到刚展开的面板预留一个极短的过渡时间。
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if !isPointerInside { presentation.isExpanded = false }
+                }
+            }
+        }
         .animation(.easeInOut(duration: 0.16), value: presentation.isExpanded)
     }
 
@@ -37,7 +48,8 @@ struct FloatingUsageView: View {
         let usage = store.selected
         return ZStack {
             Circle().fill(.thinMaterial)
-            Circle().stroke(Color.blue.opacity(0.8), lineWidth: 2)
+            // strokeBorder 向圆内绘制，避免悬浮窗裁剪掉外侧半个描边。
+            Circle().strokeBorder(Color.blue.opacity(0.8), lineWidth: 2)
             VStack(spacing: 0) {
                 Text(store.selectedWindow.shortTitle.uppercased())
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
