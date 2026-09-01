@@ -53,8 +53,9 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        // 使用普通窗口层级，前台应用和新窗口可以正常覆盖此方框。
+        panel.level = .normal
+        panel.collectionBehavior = [.stationary]
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.delegate = self
