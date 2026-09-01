@@ -5,11 +5,17 @@ import SwiftUI
 @MainActor
 final class FloatingPresentation: ObservableObject {
     @Published var showsExit = false
+    @Published var isPinned: Bool
+
+    init(isPinned: Bool) {
+        self.isPinned = isPinned
+    }
 }
 
 struct UsageSquareView: View {
     @ObservedObject var store: UsageStore
     @ObservedObject var presentation: FloatingPresentation
+    let togglePinned: () -> Void
     let quit: () -> Void
 
     var body: some View {
@@ -30,9 +36,13 @@ struct UsageSquareView: View {
                 Color.clear
                     .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .onTapGesture { presentation.showsExit = false }
-                Button("退出") { quit() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
+                VStack(spacing: 8) {
+                    Button(presentation.isPinned ? "取消置顶" : "置顶") { togglePinned() }
+                        .buttonStyle(.bordered)
+                    Button("退出") { quit() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                }
             }
         }
         .frame(width: 128, height: 128)

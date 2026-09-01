@@ -34,14 +34,18 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
     private enum Layout { static let square = NSSize(width: 128, height: 128) }
 
     private let store = UsageStore()
-    private let presentation = FloatingPresentation()
+    private let presentation: FloatingPresentation
     private let panel: FloatingPanel
     private var activityTimer: Timer?
     private var workspaceObservers: [NSObjectProtocol] = []
     private var missingCodexChecks = 0
     private let positionKey = "floatingWindowOrigin"
+    private let pinnedKey = "floatingWindowPinned"
 
     override init() {
+        presentation = FloatingPresentation(
+            isPinned: UserDefaults.standard.object(forKey: "floatingWindowPinned") as? Bool ?? true
+        )
         panel = FloatingPanel(
             contentRect: Self.initialFrame(size: Layout.square),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -53,9 +57,8 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        // 使用普通窗口层级，前台应用和新窗口可以正常覆盖此方框。
-        panel.level = .normal
-        panel.collectionBehavior = [.stationary]
+        // 默认置顶；用户可在方框内切换为普通窗口层级。
+        updateWindowLevel(isPinned: presentation.isPinned)
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.delegate = self
@@ -65,6 +68,7 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
             rootView: UsageSquareView(
                 store: store,
                 presentation: presentation,
+                togglePinned: { [weak self] in self?.togglePinned() },
                 quit: { NSApplication.shared.terminate(nil) }
             )
         )
@@ -105,6 +109,22 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
             guard (hideImmediately || missingCodexChecks >= 3), panel.isVisible else { return }
             presentation.showsExit = false
             panel.orderOut(nil)
+        }
+    }
+
+    private func togglePinned() {
+        presentation.isPinned.toggle()
+        UserDefaults.standard.set(presentation.isPinned, forKey: pinnedKey)
+        updateWindowLevel(isPinned: presentation.isPinned)
+    }
+
+    private func updateWindowLevel(isPinned: Bool) {
+        if isPinned {
+            panel.level = .floating
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        } else {
+            panel.level = .normal
+            panel.collectionBehavior = [.stationary]
         }
     }
 
