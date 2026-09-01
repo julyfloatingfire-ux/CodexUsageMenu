@@ -14,13 +14,20 @@ struct FloatingUsageView: View {
     let quit: () -> Void
 
     var body: some View {
-        Group {
-            if presentation.isExpanded {
-                expandedView
-            } else {
-                compactView
-            }
+        // 外层始终存在，不能随圆球/面板切换而替换，否则 onHover 会被误触发为移出。
+        ZStack {
+            compactView
+                .opacity(presentation.isExpanded ? 0 : 1)
+                .allowsHitTesting(!presentation.isExpanded)
+            expandedView
+                .opacity(presentation.isExpanded ? 1 : 0)
+                .allowsHitTesting(presentation.isExpanded)
         }
+        .frame(
+            width: presentation.isExpanded ? 284 : 62,
+            height: presentation.isExpanded ? 282 : 62
+        )
+        .clipped()
         .contentShape(Rectangle())
         .onHover { presentation.isExpanded = $0 }
         .animation(.easeInOut(duration: 0.16), value: presentation.isExpanded)
