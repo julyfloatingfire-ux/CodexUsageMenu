@@ -2,25 +2,47 @@ import AppKit
 import SwiftUI
 
 private final class FloatingPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
+    var canRevealExit: (() -> Bool)?
+    var onShortClick: (() -> Void)?
+    private var pressLocation: NSPoint?
+
+    override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown where canRevealExit?() == true:
+            pressLocation = event.locationInWindow
+        case .leftMouseUp:
+            let shouldReveal = canRevealExit?() == true && pressLocation.map {
+                hypot(event.locationInWindow.x - $0.x, event.locationInWindow.y - $0.y) < 4
+            } == true
+            pressLocation = nil
+            super.sendEvent(event)
+            if shouldReveal { onShortClick?() }
+            return
+        default:
+            break
+        }
+        super.sendEvent(event)
+    }
 }
 
 @MainActor
 final class FloatingWindowController: NSObject, NSWindowDelegate {
-    private enum Layout {
-        static let ball = NSSize(width: 112, height: 112)
-    }
+    private enum Layout { static let square = NSSize(width: 112, height: 112) }
 
     private let store = UsageStore()
+    private let presentation = FloatingPresentation()
     private let panel: FloatingPanel
     private var activityTimer: Timer?
+    private var workspaceObservers: [NSObjectProtocol] = []
     private var missingCodexChecks = 0
     private let positionKey = "floatingWindowOrigin"
 
     override init() {
         panel = FloatingPanel(
-            contentRect: Self.initialFrame(size: Layout.ball),
+            contentRect: Self.initialFrame(size: Layout.square),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -32,12 +54,28 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
         panel.hasShadow = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        // 原生窗口拖动：只有按住并移动才会改变圆球位置。
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.delegate = self
-        panel.contentViewController = NSHostingController(rootView: UsageBallView(store: store))
+        panel.canRevealExit = { [weak presentation] in !(presentation?.showsExit ?? false) }
+        panel.onShortClick = { [weak self] in self?.presentation.showsExit = true }
+        panel.contentViewController = NSHostingController(
+            rootView: UsageSquareView(
+                store: store,
+                presentation: presentation,
+                quit: { NSApplication.shared.terminate(nil) }
+            )
+        )
 
+        let center = NSWorkspace.shared.notificationCenter
+        workspaceObservers = [
+            center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.syncCodexVisibility() }
+            },
+            center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.syncCodexVisibility(hideImmediately: true) }
+            }
+        ]
         syncCodexVisibility()
         activityTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.syncCodexVisibility() }
@@ -46,6 +84,7 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
 
     func shutdown() {
         activityTimer?.invalidate()
+        workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         panel.orderOut(nil)
         store.shutdown()
     }
@@ -55,21 +94,20 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
         UserDefaults.standard.set([panel.frame.origin.x, panel.frame.origin.y], forKey: positionKey)
     }
 
-    private func syncCodexVisibility() {
+    private func syncCodexVisibility(hideImmediately: Bool = false) {
         if isCodexDesktopRunning {
             missingCodexChecks = 0
             if !panel.isVisible { panel.orderFrontRegardless() }
         } else {
             missingCodexChecks += 1
-            guard missingCodexChecks >= 3, panel.isVisible else { return }
+            guard (hideImmediately || missingCodexChecks >= 3), panel.isVisible else { return }
+            presentation.showsExit = false
             panel.orderOut(nil)
         }
     }
 
     private var isCodexDesktopRunning: Bool {
-        if !NSRunningApplication.runningApplications(withBundleIdentifier: "com.openai.codex").isEmpty {
-            return true
-        }
+        if !NSRunningApplication.runningApplications(withBundleIdentifier: "com.openai.codex").isEmpty { return true }
         return NSWorkspace.shared.runningApplications.contains { app in
             let name = app.localizedName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let identifier = app.bundleIdentifier?.lowercased() ?? ""
